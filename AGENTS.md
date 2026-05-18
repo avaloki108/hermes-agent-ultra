@@ -1,46 +1,46 @@
 # Hermes Rust Parity Rules
 
-移植与 parity 相关改动请遵循以下约定（与 `PARITY_PLAN.md` Week 0 一致）。
+Follow these conventions for all porting and parity-related changes (consistent with `PARITY_PLAN.md` Week 0).
 
-## 移植任务通用约定
+## General Porting Conventions
 
-1. 任何移植任务必须先读对应的 Python 源文件（`research/hermes-agent`）以及相关 Rust crate 目录结构。
-2. 对外 API 命名保持与 Python 侧一致（`snake_case`）。
-3. 错误类型优先使用各 crate 内已有的 `AgentError` / `ToolError`，避免随意新建平行错误体系。
-4. 日志使用 `tracing::{debug,info,warn,error}`，避免无门控的 `println!`（CLI 用户输出除外）。
-5. 异步代码使用 **tokio**，不要使用 async-std。
-6. 可对照的行为应通过 `crates/hermes-parity-tests/fixtures/<module>/*.json` 提供 golden；新增用例时同步更新 `scripts/record_fixtures.py`（若适用）。
-7. 单个 PR 尽量只移植一个模块；commit message 建议：`parity(<module>): port from python …`
+1. Any porting task must begin by reading the corresponding Python source file (`research/hermes-agent`) and the relevant Rust crate directory structure.
+2. Public API names must match the Python side (`snake_case`).
+3. Prefer using existing `AgentError` / `ToolError` types within each crate; avoid creating parallel error hierarchies.
+4. Use `tracing::{debug,info,warn,error}` for logging; avoid ungated `println!` (except for CLI user-facing output).
+5. Use **tokio** for async code; do not use async-std.
+6. Comparable behavior should be provided as golden fixtures via `crates/hermes-parity-tests/fixtures/<module>/*.json`; when adding new cases, also update `scripts/record_fixtures.py` (if applicable).
+7. Each PR should port only one module; suggested commit message: `parity(<module>): port from python …`
 
-## 禁止事项
+## Prohibited Actions
 
-- 不要随意改动 workspace 成员结构（新增 crate 需有明确动机并更新根 `Cargo.toml`）。
-- 新增顶层依赖须与根 `Cargo.toml` 已有版本策略一致。
-- 合并前应尽量消除新增 `clippy` 警告（全仓 `-D warnings` 为目标，当前 CI 可能仍允许存量警告）。
+- Do not arbitrarily change the workspace member structure (adding a new crate requires a clear justification and an update to the root `Cargo.toml`).
+- New top-level dependencies must align with the version policy already in the root `Cargo.toml`.
+- Before merging, eliminate any new `clippy` warnings as much as possible (the goal is `-D warnings` across the entire repo; current CI may still allow pre-existing warnings).
 
-## Parity 测试
+## Parity Tests
 
 ```bash
 cargo test -p hermes-parity-tests
 ```
 
-- 模块状态见 `crates/hermes-parity-tests/fixtures/registry.json`。
-- `fixtures/pending/` 中的内容默认不参与 `run_all_active_fixtures`。
+- Module status is tracked in `crates/hermes-parity-tests/fixtures/registry.json`.
+- Content in `fixtures/pending/` is not included in `run_all_active_fixtures` by default.
 
-Python 侧对照录制：
+Recording fixtures from the Python side:
 
 ```bash
 python3 scripts/record_fixtures.py
 ```
 
-无 Python 仓库时仍会输出 **checkpoint 目录哈希**（与 `checkpoint_manager`  shadow 目录命名算法一致）。
+When the Python repository is unavailable, the script still outputs **checkpoint directory hashes** (consistent with the shadow directory naming algorithm used by `checkpoint_manager`).
 
-## 评测结果落盘
+## Evaluation Result Persistence
 
-`hermes-eval` 使用 [`JsonReporter`](crates/hermes-eval/src/reporter.rs) 将 [`RunRecord`](crates/hermes-eval/src/result.rs) 写成 JSON；基线对比 / Parquet 可在其上扩展。
+`hermes-eval` uses [`JsonReporter`](crates/hermes-eval/src/reporter.rs) to write [`RunRecord`](crates/hermes-eval/src/result.rs) as JSON; baseline comparison / Parquet output can be built on top of this.
 
-### 真实 Agent rollout（非 Noop）
+### Real Agent Rollout (Non-Noop)
 
-构建与 `hermes-cli` 相同的 [`hermes_agent::AgentLoop`](crates/hermes-agent)，启用 crate feature **`agent-loop`** 后使用 [`AgentLoopRollout`](crates/hermes-eval/src/agent_rollout.rs) 作为 [`TaskRollout`](crates/hermes-eval/src/runner.rs) 传入 [`Runner::run`](crates/hermes-eval/src/runner.rs)：
+Build the same [`hermes_agent::AgentLoop`](crates/hermes-agent) used by `hermes-cli`, enable the crate feature **`agent-loop`**, and pass [`AgentLoopRollout`](crates/hermes-eval/src/agent_rollout.rs) as the [`TaskRollout`](crates/hermes-eval/src/runner.rs) to [`Runner::run`](crates/hermes-eval/src/runner.rs):
 
 `cargo build -p hermes-eval --features agent-loop`
